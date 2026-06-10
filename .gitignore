@@ -389,3 +389,10 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+
+# Added by cargo
+/target
+
+# Steam
+steam_appid.txt

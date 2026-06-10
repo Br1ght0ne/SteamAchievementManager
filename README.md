@@ -1,20 +1,52 @@
 # Steam Achievement Manager
 
-Steam Achievement Manager (SAM) is a lightweight, portable application used to manage achievements and statistics in the popular PC gaming platform Steam. This application requires the [Steam client](https://store.steampowered.com/about/), a Steam account and network access. Steam must be running and the user must be logged in.
+A command-line tool to manage Steam achievements, rewritten in Rust.
 
-This is the code for SAM. The closed-source version originally released in 2008, last major release in 2011, and last updated in 2013 (a hotfix).
+## Requirements
 
-The code is being made available so that those interested can do as they like with it.
+- [Steam client](https://store.steampowered.com/about/) running and logged in
+- Rust toolchain (for building from source)
 
-There are some changes to the code since the last closed-source release:
-- General code maintenance to bring it into a more modern state.
-- Icons have been replaced with ones from the Fugue Icons set.
-- Version has been bumped to 7.0.x.x to indicate the open-source release.
+## Building
 
-[Download latest release](https://github.com/gibbed/SteamAchievementManager/releases/latest).
+```bash
+cargo build --release
+```
 
-[![Build status](https://ci.appveyor.com/api/projects/status/00vic6jliar6j0ol/branch/master?svg=true)](https://ci.appveyor.com/project/gibbed/steamachievementmanager/branch/master)
+The binary will be at `target/release/sam`.
 
-## Attribution
+## Usage
 
-Most (if not all) icons are from the [Fugue Icons](https://p.yusukekamiyamane.com/) set.
+```bash
+# List all achievements for a game
+sam list <app_id>
+
+# Unlock specific achievements
+sam unlock <app_id> <achievement_id> [<achievement_id>...]
+
+# Lock (re-lock) specific achievements
+sam lock <app_id> <achievement_id> [<achievement_id>...]
+
+# Reset all unlocked achievements for a game
+sam reset <app_id>
+```
+
+### Examples
+
+```bash
+# List achievements for Half-Life 2 (app id 220)
+sam list 220
+
+# Unlock an achievement
+sam unlock 220 HL2_HIT_CANCOP_WITHCAN
+
+# Lock it back
+sam lock 220 HL2_HIT_CANCOP_WITHCAN
+
+# Reset all achievements
+sam reset 220
+```
+
+## License
+
+This software is provided under the [zlib license](LICENSE.txt).
