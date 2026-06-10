@@ -15,6 +15,12 @@ cargo build --release
 
 The binary will be at `target/release/sam`.
 
+
+## Releases
+
+Prebuilt binaries for Windows, macOS, and Linux are published on GitHub Releases.
+To cut the initial 0.1 release, run the `Release` workflow with tag `v0.1.0` (or push the `v0.1.0` tag).
+
 ## Usage
 
 ```bash
