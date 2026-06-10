@@ -21,6 +21,9 @@ The binary will be at `target/release/sam`.
 # Launch the TUI
 sam tui
 
+# List discovered installed games with app IDs
+sam games
+
 # List all achievements for a game
 sam list <app_id>
 
@@ -66,6 +69,9 @@ Stat updates are also queued (`STAT_NAME=value`) and applied on commit.
 ### Examples
 
 ```bash
+# List discovered installed games
+sam games
+
 # List achievements for Half-Life 2 (app id 220)
 sam list 220
 

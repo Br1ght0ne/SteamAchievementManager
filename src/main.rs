@@ -260,6 +260,8 @@ struct Cli {
 enum Command {
     /// Launch ratatui interface
     Tui,
+    /// List discovered installed games with Steam App IDs
+    Games,
     /// List all achievements for a game
     List {
         /// Steam App ID
@@ -432,6 +434,24 @@ fn cmd_list(app_id: u32) -> Result<()> {
             "✗ Locked"
         };
         println!("{:<50} {status}", item.name);
+    }
+
+    Ok(())
+}
+
+fn cmd_games() -> Result<()> {
+    let games = discover_games();
+    if games.is_empty() {
+        println!("No installed games found.");
+        return Ok(());
+    }
+
+    println!("Installed games:");
+    println!("{:<10} NAME", "APP ID");
+    println!("{}", "-".repeat(70));
+
+    for game in games {
+        println!("{:<10} {}", game.app_id, game.name);
     }
 
     Ok(())
@@ -1108,6 +1128,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Command::Tui => run_tui(),
+        Command::Games => cmd_games(),
         Command::List { app_id } => cmd_list(app_id),
         Command::Unlock {
             app_id,
