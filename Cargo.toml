@@ -1,0 +1,14 @@
+[package]
+name = "sam"
+version = "0.1.0"
+edition = "2024"
+description = "Steam Achievement Manager – CLI"
+license = "Zlib"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.6", features = ["derive"] }
+steamworks = "0.13"
+crossterm = "0.29"
+ratatui = "0.29"
+regex = "1.12"
