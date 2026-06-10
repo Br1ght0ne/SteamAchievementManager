@@ -336,8 +336,10 @@ fn tui_event_loop(
                                 );
                             }
                             Err(err) => {
-                                state.status =
-                                    format!("Failed to load achievements for {} ({}): {err}", game.name, game.app_id);
+                                state.status = format!(
+                                    "Failed to load achievements for {} ({}): {err}",
+                                    game.name, game.app_id
+                                );
                             }
                         }
                     }
@@ -413,7 +415,8 @@ fn tui_event_loop(
                 KeyCode::Char('s') if state.selected_game().is_some() => {
                     state.input_mode = true;
                     state.input_buffer.clear();
-                    state.status = "Stat input mode: type STAT_NAME=value then press Enter.".to_string();
+                    state.status =
+                        "Stat input mode: type STAT_NAME=value then press Enter.".to_string();
                 }
                 KeyCode::Char('d') | KeyCode::Delete | KeyCode::Backspace
                     if state.focus == FocusPane::Queue =>
@@ -424,8 +427,9 @@ fn tui_event_loop(
                     let op_count = state.queue.len();
                     match commit_queue(state) {
                         Ok(changed_apps) => {
-                            state.status =
-                                format!("Committed {op_count} queued operation(s) across {changed_apps} app(s).");
+                            state.status = format!(
+                                "Committed {op_count} queued operation(s) across {changed_apps} app(s)."
+                            );
                             if let Some(app_id) = state.loaded_app_id
                                 && let Ok(items) = steam::load_achievements(app_id)
                             {
@@ -547,13 +551,16 @@ fn draw_ui(frame: &mut ratatui::Frame<'_>, state: &TuiState) {
     if state.input_mode {
         let popup = centered_rect(70, 20, frame.area());
         frame.render_widget(Clear, popup);
-        let modal = Paragraph::new(format!("Set stat for selected game:\n{}\n", state.input_buffer))
-            .block(
-                Block::default()
-                    .title("STAT INPUT (Esc to cancel)")
-                    .borders(Borders::ALL),
-            )
-            .style(Style::default().fg(Color::White).bg(Color::Black));
+        let modal = Paragraph::new(format!(
+            "Set stat for selected game:\n{}\n",
+            state.input_buffer
+        ))
+        .block(
+            Block::default()
+                .title("STAT INPUT (Esc to cancel)")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White).bg(Color::Black));
         frame.render_widget(modal, popup);
     }
 
@@ -596,7 +603,11 @@ In stat input mode:\n\
     }
 }
 
-fn centered_rect(percent_x: u16, percent_y: u16, area: ratatui::layout::Rect) -> ratatui::layout::Rect {
+fn centered_rect(
+    percent_x: u16,
+    percent_y: u16,
+    area: ratatui::layout::Rect,
+) -> ratatui::layout::Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -618,7 +629,9 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: ratatui::layout::Rect) ->
 
 fn pane_style(is_focused: bool) -> Style {
     if is_focused {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default()
     }
@@ -653,7 +666,11 @@ fn draw_games_pane(frame: &mut ratatui::Frame<'_>, state: &TuiState, area: ratat
     frame.render_stateful_widget(list, area, &mut list_state);
 }
 
-fn draw_achievements_pane(frame: &mut ratatui::Frame<'_>, state: &TuiState, area: ratatui::layout::Rect) {
+fn draw_achievements_pane(
+    frame: &mut ratatui::Frame<'_>,
+    state: &TuiState,
+    area: ratatui::layout::Rect,
+) {
     let app_id = state
         .loaded_app_id
         .or_else(|| state.selected_game().map(|g| g.app_id));
@@ -726,7 +743,9 @@ fn draw_queue_pane(frame: &mut ratatui::Frame<'_>, state: &TuiState, area: ratat
                     value,
                 } => match value {
                     StatValue::Int(v) => ListItem::new(format!("set stat {stat}={v} ({app_id})")),
-                    StatValue::Float(v) => ListItem::new(format!("set stat {stat}={v:.3} ({app_id})")),
+                    StatValue::Float(v) => {
+                        ListItem::new(format!("set stat {stat}={v:.3} ({app_id})"))
+                    }
                 },
             })
             .collect()

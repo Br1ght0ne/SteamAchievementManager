@@ -35,7 +35,11 @@ pub(crate) fn load_achievements(app_id: u32) -> Result<Vec<AchievementState>> {
     Ok(out)
 }
 
-pub(crate) fn apply_achievement_changes(app_id: u32, unlocks: &[String], locks: &[String]) -> Result<()> {
+pub(crate) fn apply_achievement_changes(
+    app_id: u32,
+    unlocks: &[String],
+    locks: &[String],
+) -> Result<()> {
     if unlocks.is_empty() && locks.is_empty() {
         return Ok(());
     }
