@@ -9,3 +9,6 @@ license = "Zlib"
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 steamworks = "0.13"
+crossterm = "0.29"
+ratatui = "0.29"
+regex = "1.12"
