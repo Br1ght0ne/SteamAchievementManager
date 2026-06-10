@@ -35,7 +35,13 @@ struct GameEntry {
     name: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
+enum StatValue {
+    Int(i32),
+    Float(f32),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 enum QueueOperation {
     SetAchievement {
         app_id: u32,
@@ -44,6 +50,11 @@ enum QueueOperation {
     },
     ResetAll {
         app_id: u32,
+    },
+    SetStat {
+        app_id: u32,
+        stat: String,
+        value: StatValue,
     },
 }
 
@@ -64,6 +75,9 @@ struct TuiState {
     focus: FocusPane,
     loaded_app_id: Option<u32>,
     status: String,
+    input_mode: bool,
+    input_buffer: String,
+    show_help: bool,
 }
 
 impl TuiState {
@@ -78,6 +92,9 @@ impl TuiState {
             focus: FocusPane::Games,
             loaded_app_id: None,
             status: "Press <Enter> on a game to load achievements. q to quit.".to_string(),
+            input_mode: false,
+            input_buffer: String::new(),
+            show_help: false,
         }
     }
 
@@ -132,6 +149,25 @@ impl TuiState {
 
     fn queue_reset(&mut self, app_id: u32) {
         self.queue.push(QueueOperation::ResetAll { app_id });
+        self.queue_selected = self.queue.len().saturating_sub(1);
+    }
+
+    fn queue_set_stat(&mut self, app_id: u32, stat: &str, value: StatValue) {
+        self.queue.retain(|op| {
+            !matches!(
+                op,
+                QueueOperation::SetStat {
+                    app_id: op_app,
+                    stat: op_stat,
+                    ..
+                } if *op_app == app_id && op_stat == stat
+            )
+        });
+        self.queue.push(QueueOperation::SetStat {
+            app_id,
+            stat: stat.to_string(),
+            value,
+        });
         self.queue_selected = self.queue.len().saturating_sub(1);
     }
 
@@ -309,6 +345,33 @@ fn apply_achievement_changes(app_id: u32, unlocks: &[String], locks: &[String]) 
     Ok(())
 }
 
+fn apply_stat_changes(app_id: u32, stats: &[(String, StatValue)]) -> Result<()> {
+    if stats.is_empty() {
+        return Ok(());
+    }
+
+    let client = init_client(app_id)?;
+    let user_stats = client.user_stats();
+    run_callbacks(&client);
+
+    for (name, value) in stats {
+        match value {
+            StatValue::Int(v) => user_stats
+                .set_stat_i32(name, *v)
+                .map_err(|()| anyhow!("Failed to set i32 stat {name}={v}"))?,
+            StatValue::Float(v) => user_stats
+                .set_stat_f32(name, *v)
+                .map_err(|()| anyhow!("Failed to set f32 stat {name}={v}"))?,
+        }
+    }
+
+    user_stats
+        .store_stats()
+        .map_err(|()| anyhow!("Failed to store stats"))?;
+    run_callbacks(&client);
+    Ok(())
+}
+
 fn reset_all(app_id: u32) -> Result<()> {
     let client = init_client(app_id)?;
     let user_stats = client.user_stats();
@@ -322,6 +385,33 @@ fn reset_all(app_id: u32) -> Result<()> {
         .map_err(|()| anyhow!("Failed to store stats"))?;
     run_callbacks(&client);
     Ok(())
+}
+
+fn parse_stat_assignment(input: &str) -> Result<(String, StatValue)> {
+    let (name, value) = input
+        .split_once('=')
+        .ok_or_else(|| anyhow!("Expected format: STAT_NAME=value"))?;
+    let stat_name = name.trim();
+    let raw_value = value.trim();
+
+    if stat_name.is_empty() {
+        return Err(anyhow!("Stat name cannot be empty"));
+    }
+    if raw_value.is_empty() {
+        return Err(anyhow!("Stat value cannot be empty"));
+    }
+
+    if raw_value.contains('.') {
+        let parsed = raw_value
+            .parse::<f32>()
+            .map_err(|_| anyhow!("Invalid float stat value: {raw_value}"))?;
+        Ok((stat_name.to_string(), StatValue::Float(parsed)))
+    } else {
+        let parsed = raw_value
+            .parse::<i32>()
+            .map_err(|_| anyhow!("Invalid integer stat value: {raw_value}"))?;
+        Ok((stat_name.to_string(), StatValue::Int(parsed)))
+    }
 }
 
 fn cmd_list(app_id: u32) -> Result<()> {
@@ -507,8 +597,55 @@ fn tui_event_loop(
                 continue;
             }
 
+            if state.show_help {
+                match key.code {
+                    KeyCode::Char('?') | KeyCode::Esc | KeyCode::Enter => {
+                        state.show_help = false;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            if state.input_mode {
+                match key.code {
+                    KeyCode::Esc => {
+                        state.input_mode = false;
+                        state.input_buffer.clear();
+                        state.status = "Cancelled stat input.".to_string();
+                    }
+                    KeyCode::Backspace => {
+                        state.input_buffer.pop();
+                    }
+                    KeyCode::Enter => {
+                        if let Some(game) = state.selected_game().cloned() {
+                            match parse_stat_assignment(&state.input_buffer) {
+                                Ok((stat, value)) => {
+                                    state.queue_set_stat(game.app_id, &stat, value);
+                                    state.status = format!(
+                                        "Queued stat update for app {}: {}",
+                                        game.app_id, state.input_buffer
+                                    );
+                                }
+                                Err(err) => {
+                                    state.status = format!("Invalid stat input: {err}");
+                                }
+                            }
+                        }
+                        state.input_mode = false;
+                        state.input_buffer.clear();
+                    }
+                    KeyCode::Char(ch) => state.input_buffer.push(ch),
+                    _ => {}
+                }
+                continue;
+            }
+
             match key.code {
                 KeyCode::Char('q') => return Ok(()),
+                KeyCode::Char('?') => {
+                    state.show_help = true;
+                }
                 KeyCode::Char('h') => state.move_focus_left(),
                 KeyCode::Char('l') => state.move_focus_right(),
                 KeyCode::Char('j') | KeyCode::Down => state.move_selection_down(),
@@ -609,6 +746,12 @@ fn tui_event_loop(
                         state.status = format!("Queued reset-all for app {}", game.app_id);
                     }
                 }
+                KeyCode::Char('s') if state.selected_game().is_some() => {
+                    state.input_mode = true;
+                    state.input_buffer.clear();
+                    state.status =
+                        "Stat input mode: type STAT_NAME=value then press Enter.".to_string();
+                }
                 KeyCode::Char('d') | KeyCode::Delete | KeyCode::Backspace
                     if state.focus == FocusPane::Queue =>
                 {
@@ -646,6 +789,7 @@ fn commit_queue(state: &mut TuiState) -> Result<usize> {
 
     let mut per_app_unlocks: BTreeMap<u32, Vec<String>> = BTreeMap::new();
     let mut per_app_locks: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+    let mut per_app_stats: BTreeMap<u32, Vec<(String, StatValue)>> = BTreeMap::new();
     let mut resets: Vec<u32> = Vec::new();
 
     for op in &state.queue {
@@ -668,6 +812,16 @@ fn commit_queue(state: &mut TuiState) -> Result<usize> {
                 }
             }
             QueueOperation::ResetAll { app_id } => resets.push(*app_id),
+            QueueOperation::SetStat {
+                app_id,
+                stat,
+                value,
+            } => {
+                per_app_stats
+                    .entry(*app_id)
+                    .or_default()
+                    .push((stat.clone(), value.clone()));
+            }
         }
     }
 
@@ -681,13 +835,16 @@ fn commit_queue(state: &mut TuiState) -> Result<usize> {
     let app_ids: HashSet<u32> = per_app_unlocks
         .keys()
         .chain(per_app_locks.keys())
+        .chain(per_app_stats.keys())
         .copied()
         .collect();
 
     for app_id in app_ids {
         let unlocks = per_app_unlocks.remove(&app_id).unwrap_or_default();
         let locks = per_app_locks.remove(&app_id).unwrap_or_default();
+        let stats = per_app_stats.remove(&app_id).unwrap_or_default();
         apply_achievement_changes(app_id, &unlocks, &locks)?;
+        apply_stat_changes(app_id, &stats)?;
         changed.insert(app_id);
     }
 
@@ -717,13 +874,91 @@ fn draw_ui(frame: &mut ratatui::Frame<'_>, state: &TuiState) {
     draw_queue_pane(frame, state, columns[2]);
 
     let footer = Paragraph::new(Line::from(vec![
-        "vim: h/l focus • j/k move • g/G top/bottom • Enter load • space toggle • u unlock • x lock/remove • A unlock-all • X lock-all • r reset-all • c commit • q quit".into(),
+        "vim: h/l focus • j/k move • g/G top/bottom • Enter load • space toggle • u unlock • x lock/remove • s add-stat (STAT=value) • A unlock-all • X lock-all • r reset-all • c commit • ? help • q quit".into(),
     ]))
     .style(Style::default().fg(Color::DarkGray))
     .block(Block::default().title(state.status.as_str()).borders(Borders::ALL));
 
     frame.render_widget(Clear, root[1]);
     frame.render_widget(footer, root[1]);
+
+    if state.input_mode {
+        let popup = centered_rect(70, 20, frame.area());
+        frame.render_widget(Clear, popup);
+        let modal = Paragraph::new(format!(
+            "Set stat for selected game:\n{}\n",
+            state.input_buffer
+        ))
+        .block(
+            Block::default()
+                .title("STAT INPUT (Esc to cancel)")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White).bg(Color::Black));
+        frame.render_widget(modal, popup);
+    }
+
+    if state.show_help {
+        let popup = centered_rect(80, 70, frame.area());
+        frame.render_widget(Clear, popup);
+        let help_text = Paragraph::new(
+            "SAM TUI help\n\n\
+Global:\n\
+  q = quit\n\
+  ? = toggle this help popup\n\n\
+Navigation (vim):\n\
+  h/l = focus previous/next pane\n\
+  j/k = move selection down/up\n\
+  g/G = jump to top/bottom\n\n\
+Games pane:\n\
+  Enter = load selected game's achievements\n\n\
+Achievements pane:\n\
+  space = toggle lock/unlock (queued)\n\
+  u = queue unlock selected achievement\n\
+  x = queue lock selected achievement\n\
+  A = queue unlock-all\n\
+  X = queue lock-all\n\
+  r = queue reset-all stats+achievements\n\
+  s = queue stat update (STAT_NAME=value)\n\n\
+Queue pane:\n\
+  x, d, Delete, Backspace = remove selected queued operation\n\
+  c = commit all queued operations\n\n\
+In stat input mode:\n\
+  Enter = queue stat change\n\
+  Esc = cancel\n",
+        )
+        .block(
+            Block::default()
+                .title("Help (press ?, Esc, or Enter to close)")
+                .borders(Borders::ALL),
+        )
+        .style(Style::default().fg(Color::White).bg(Color::Black));
+        frame.render_widget(help_text, popup);
+    }
+}
+
+fn centered_rect(
+    percent_x: u16,
+    percent_y: u16,
+    area: ratatui::layout::Rect,
+) -> ratatui::layout::Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
 
 fn pane_style(is_focused: bool) -> Style {
@@ -836,6 +1071,16 @@ fn draw_queue_pane(frame: &mut ratatui::Frame<'_>, state: &TuiState, area: ratat
                 QueueOperation::ResetAll { app_id } => {
                     ListItem::new(format!("reset all stats+achievements ({app_id})"))
                 }
+                QueueOperation::SetStat {
+                    app_id,
+                    stat,
+                    value,
+                } => match value {
+                    StatValue::Int(v) => ListItem::new(format!("set stat {stat}={v} ({app_id})")),
+                    StatValue::Float(v) => {
+                        ListItem::new(format!("set stat {stat}={v:.3} ({app_id})"))
+                    }
+                },
             })
             .collect()
     };

@@ -43,12 +43,14 @@ The TUI discovers installed games from Steam library manifests (`appmanifest_*.a
 - an operation queue (right pane)
 
 Changes are queued first and only sent to Steam when you commit, so you can stage multiple operations before applying them.
+Stat updates are also queued (`STAT_NAME=value`) and applied on commit.
 
 ### TUI keybindings (vim-style)
 
 - `h` / `l`: move focus between panes
 - `j` / `k`: move selection
 - `g` / `G`: jump to top/bottom
+- `?`: open/close full help popup
 - `Enter`: load selected game's achievements
 - `space`: toggle selected achievement (queues lock/unlock)
 - `u`: queue unlock for selected achievement
@@ -56,6 +58,7 @@ Changes are queued first and only sent to Steam when you commit, so you can stag
 - `A`: queue unlock-all for current game
 - `X`: queue lock-all for current game
 - `r`: queue reset-all stats+achievements for current game
+- `s`: queue stat edit in `STAT_NAME=value` format
 - `d` / `Delete` / `Backspace`: remove selected queue item
 - `c`: commit queued operations
 - `q`: quit
